@@ -19,7 +19,7 @@ const (
 
 var (
 	pathPrefix     string
-	fileNameFormat = "2006_01-02"
+	fileNameFormat = "2006_01_02"
 	logPath        = ""
 	fileWriter     writer
 )
@@ -28,7 +28,7 @@ func Init() bool {
 	path := strings.Split(os.Args[0], "/")
 	pathPrefix = path[len(path)-1]
 
-	f := fileWriter.createFile(pathPrefix, time.Now())
+	f := fileWriter.createFile(time.Now())
 	if f == nil {
 		return false
 	}
@@ -115,9 +115,9 @@ func (w *writer) Close() {
 	f.Close()
 }
 
-func (w *writer) createFile(prefix string, now time.Time) *os.File {
-	fileSuffix := now.Format(fileNameFormat)
-	name := fmt.Sprintf("%s%s_%s.log", logPath, prefix, fileSuffix)
+func (w *writer) createFile(createTime time.Time) *os.File {
+	fileSuffix := createTime.Format(fileNameFormat)
+	name := fmt.Sprintf("%s%s_%s.log", logPath, pathPrefix, fileSuffix)
 	file, _ := os.OpenFile(name, os.O_RDWR|os.O_APPEND|os.O_CREATE, fileMod)
 	return file
 }
@@ -130,7 +130,7 @@ func (w *writer) checkFileChange() {
 		select {
 		case <-tm.C:
 			{
-				f := w.createFile(pathPrefix, tomorrow)
+				f := w.createFile(tomorrow)
 				if f != nil {
 					oldfile := w.f
 					atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&w.f)), unsafe.Pointer(f))
@@ -149,22 +149,23 @@ func (w *writer) checkFileExists() {
 		select {
 		case <-tm.C:
 			{
-				now := time.Now()
-				if w.existsLogFile(pathPrefix, now) {
+				if w.existsLogFile() {
 					break
 				}
-				f := w.createFile(pathPrefix, now)
-				if f == nil {
+				now := time.Now()
+				f := w.createFile(now)
+				if f != nil {
+					atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&w.f)), unsafe.Pointer(f))
 				}
-				atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&w.f)), unsafe.Pointer(f))
 			}
 		}
 	}
 }
 
-func (w *writer) existsLogFile(prefix string, now time.Time) bool {
+func (w *writer) existsLogFile() bool {
+	now := time.Now()
 	t := now.Format(fileNameFormat)
-	fileName := fmt.Sprintf("%s_%s.log", prefix, t)
+	fileName := fmt.Sprintf("%s_%s.log", pathPrefix, t)
 	_, err := os.Stat(fileName)
 	return err == nil || os.IsExist(err)
 }
