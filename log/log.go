@@ -80,6 +80,23 @@ func Printf(format string, v ...interface{}) {
 	log.Printf(format, v...)
 }
 
+func EnableStdOut() {
+	fileWriter.stdout = true
+}
+
+func DisableStdOut() {
+	fileWriter.stdout = false
+}
+
+func SetLevel(lvl zerolog.Level) {
+	log.Logger = log.Level(zerolog.Level(lvl))
+}
+
+// Close 关闭日志系统
+func Close() {
+	fileWriter.Close()
+}
+
 type writer struct {
 	mu     sync.Mutex
 	f      *os.File
@@ -97,9 +114,9 @@ func (w *writer) Write(b []byte) (n int, err error) {
 		return 0, nil
 	}
 
-	w.mu.Lock()
+	// w.mu.Lock()
 	n, writeErr := f.Write(b)
-	w.mu.Unlock()
+	// w.mu.Unlock()
 
 	return n, writeErr
 }
@@ -135,6 +152,7 @@ func (w *writer) checkFileChange() {
 					oldfile := w.f
 					atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&w.f)), unsafe.Pointer(f))
 					time.Sleep(10 * time.Second)
+
 					oldfile.Sync()
 					oldfile.Close()
 				}
