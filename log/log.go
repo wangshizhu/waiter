@@ -92,6 +92,10 @@ func SetLevel(lvl zerolog.Level) {
 	log.Logger = log.Level(zerolog.Level(lvl))
 }
 
+func AddHook(h zerolog.Hook) {
+	log.Logger = log.Hook(h)
+}
+
 // Close 关闭日志系统
 func Close() {
 	fileWriter.Close()
