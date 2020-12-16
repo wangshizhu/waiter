@@ -3,6 +3,7 @@ package log
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -18,97 +19,239 @@ const (
 )
 
 var (
-	pathPrefix     string
+	appName        string
 	fileNameFormat = "2006_01_02"
 	logPath        = ""
-	fileWriter     writer
+	loggerMgr      = loggerManager{logger: make(map[string]*zerolog.Logger)}
 )
 
 func Init() bool {
 	path := strings.Split(os.Args[0], "/")
-	pathPrefix = path[len(path)-1]
+	appName = path[len(path)-1]
 
-	f := fileWriter.createFile(time.Now())
-	if f == nil {
+	if len(appName) == 0 {
 		return false
 	}
 
-	fileWriter.f = f
-	fileWriter.stdout = true
-
-	log.Logger = log.Output(&fileWriter)
+	l := loggerMgr.createLogger(appName)
+	log.Logger = *l
 
 	// time format
 	// RFC3339 "2006-01-02 15:04:05.000"
 	zerolog.TimeFieldFormat = time.RFC3339
 
-	// check
-	go fileWriter.checkFileChange()
-	go fileWriter.checkFileExists()
-
-	// log
-	log.Info().Msg("log init success!")
-
 	return true
 }
 
 func Info() *zerolog.Event {
-	return log.Info()
+	return loggerMgr.getSetLogger(appName).Info()
+}
+
+func NamedInfo(loggerName string) *zerolog.Event {
+	return loggerMgr.getSetLogger(loggerName).Info()
+}
+
+func EasyInfo(v ...interface{}) *zerolog.Event {
+	l := len(v)
+	if l == 0 {
+		return loggerMgr.getSetLogger(appName).Info()
+	}
+
+	if reflect.TypeOf(v[0]).Kind() != reflect.String {
+		loggerMgr.getSetLogger(appName).Fatal().Msg("easy info first param isnt string ")
+	}
+
+	name := reflect.ValueOf(v[0]).String()
+
+	return loggerMgr.getSetLogger(name).Info()
 }
 
 func Debug() *zerolog.Event {
-	return log.Debug()
+	return loggerMgr.getSetLogger(appName).Debug()
+}
+
+func NamedDebug(loggerName string) *zerolog.Event {
+	return loggerMgr.getSetLogger(loggerName).Debug()
+}
+
+func EasyDebug(v ...interface{}) *zerolog.Event {
+	l := len(v)
+	if l == 0 {
+		return loggerMgr.getSetLogger(appName).Debug()
+	}
+
+	if reflect.TypeOf(v[0]).Kind() != reflect.String {
+		loggerMgr.getSetLogger(appName).Fatal().Msg("easy debug first param isnt string ")
+	}
+
+	name := reflect.ValueOf(v[0]).String()
+
+	return loggerMgr.getSetLogger(name).Debug()
 }
 
 func Error() *zerolog.Event {
-	return log.Error()
+	return loggerMgr.getSetLogger(appName).Error()
+}
+
+func NamedError(loggerName string) *zerolog.Event {
+	return loggerMgr.getSetLogger(loggerName).Error()
+}
+
+func EasyError(v ...interface{}) *zerolog.Event {
+	l := len(v)
+	if l == 0 {
+		return loggerMgr.getSetLogger(appName).Error()
+	}
+
+	if reflect.TypeOf(v[0]).Kind() != reflect.String {
+		loggerMgr.getSetLogger(appName).Fatal().Msg("easy error first param isnt string ")
+	}
+
+	name := reflect.ValueOf(v[0]).String()
+
+	return loggerMgr.getSetLogger(name).Error()
 }
 
 func Warn() *zerolog.Event {
-	return log.Warn()
+	return loggerMgr.getSetLogger(appName).Warn()
+}
+
+func NamedWarn(loggerName string) *zerolog.Event {
+	return loggerMgr.getSetLogger(loggerName).Warn()
+}
+
+func EasyWarn(v ...interface{}) *zerolog.Event {
+	l := len(v)
+	if l == 0 {
+		return loggerMgr.getSetLogger(appName).Warn()
+	}
+
+	if reflect.TypeOf(v[0]).Kind() != reflect.String {
+		loggerMgr.getSetLogger(appName).Fatal().Msg("easy warn first param isnt string ")
+	}
+
+	name := reflect.ValueOf(v[0]).String()
+
+	return loggerMgr.getSetLogger(name).Warn()
 }
 
 func Fatal() *zerolog.Event {
-	return log.Fatal()
+	return loggerMgr.getSetLogger(appName).Fatal()
+}
+
+func NamedFatal(loggerName string) *zerolog.Event {
+	return loggerMgr.getSetLogger(loggerName).Fatal()
+}
+
+func EasyFatal(v ...interface{}) *zerolog.Event {
+	l := len(v)
+	if l == 0 {
+		return loggerMgr.getSetLogger(appName).Fatal()
+	}
+
+	if reflect.TypeOf(v[0]).Kind() != reflect.String {
+		loggerMgr.getSetLogger(appName).Fatal().Msg("easy fatal first param isnt string ")
+	}
+
+	name := reflect.ValueOf(v[0]).String()
+
+	return loggerMgr.getSetLogger(name).Fatal()
 }
 
 func Print(v ...interface{}) {
-	log.Print(v...)
+	loggerMgr.getSetLogger(appName).Print(v...)
+}
+
+func EasyPrint(loggerName string, v ...interface{}) {
+	l := len(loggerName)
+	if l == 0 {
+		loggerMgr.getSetLogger(appName).Print(v...)
+		return
+	}
+
+	loggerMgr.getSetLogger(loggerName).Print(v...)
 }
 
 func Printf(format string, v ...interface{}) {
-	log.Printf(format, v...)
+	loggerMgr.getSetLogger(appName).Printf(format, v...)
+}
+
+func EasyPrintf(loggerName string, format string, v ...interface{}) {
+	l := len(loggerName)
+	if l == 0 {
+		loggerMgr.getSetLogger(appName).Printf(format, v...)
+		return
+	}
+
+	loggerMgr.getSetLogger(loggerName).Printf(format, v...)
 }
 
 func EnableStdOut() {
-	fileWriter.stdout = true
+	loggerMgr.enableStdOut()
 }
 
 func DisableStdOut() {
-	fileWriter.stdout = false
+	loggerMgr.disableStdOut()
 }
 
-func SetLevel(lvl zerolog.Level) {
-	log.Logger = log.Level(zerolog.Level(lvl))
+func SetLevel(lvl zerolog.Level, v ...interface{}) {
+	loggerName := appName
+
+	if len(v) > 0 {
+		if reflect.TypeOf(v[0]).Kind() != reflect.String {
+			loggerMgr.getSetLogger(appName).Error().Msg("SetLevel first param isnt string ")
+			return
+		}
+
+		loggerName = reflect.ValueOf(v[0]).String()
+	}
+
+	logger := loggerMgr.getLogger(loggerName)
+	if logger == nil {
+		loggerMgr.getSetLogger(appName).Error().Str("loggerName", loggerName).Msg("SetLevel dont find the logger")
+		return
+	}
+
+	newLogger := logger.Level(zerolog.Level(lvl))
+
+	loggerMgr.setLogger(loggerName, &newLogger)
 }
 
-func AddHook(h zerolog.Hook) {
-	log.Logger = log.Hook(h)
+func AddHook(h zerolog.Hook, v ...interface{}) {
+	loggerName := appName
+
+	if len(v) > 0 {
+		if reflect.TypeOf(v[0]).Kind() != reflect.String {
+			loggerMgr.getSetLogger(appName).Error().Msg("AddHook first param isnt string ")
+			return
+		}
+
+		loggerName = reflect.ValueOf(v[0]).String()
+	}
+
+	logger := loggerMgr.getLogger(loggerName)
+	if logger == nil {
+		loggerMgr.getSetLogger(appName).Error().Str("loggerName", loggerName).Msg("AddHook dont find the logger")
+		return
+	}
+
+	newLogger := logger.Hook(h)
+
+	loggerMgr.setLogger(loggerName, &newLogger)
 }
 
-// Close 关闭日志系统
 func Close() {
-	fileWriter.Close()
+	// fileWriter.Close()
 }
 
 type writer struct {
-	mu     sync.Mutex
-	f      *os.File
-	stdout bool
+	mu   sync.Mutex
+	f    *os.File
+	name string
 }
 
 func (w *writer) Write(b []byte) (n int, err error) {
-	if w.stdout {
+	if loggerMgr.toStdOut() {
 		os.Stderr.Write(b)
 	}
 
@@ -138,8 +281,12 @@ func (w *writer) Close() {
 
 func (w *writer) createFile(createTime time.Time) *os.File {
 	fileSuffix := createTime.Format(fileNameFormat)
-	name := fmt.Sprintf("%s%s_%s.log", logPath, pathPrefix, fileSuffix)
-	file, _ := os.OpenFile(name, os.O_RDWR|os.O_APPEND|os.O_CREATE, fileMod)
+	name := fmt.Sprintf("%s%s_%s.log", logPath, w.name, fileSuffix)
+	file, err := os.OpenFile(name, os.O_RDWR|os.O_APPEND|os.O_CREATE, fileMod)
+	if err != nil {
+		log.Error().Err(err).Str("logger_name", w.name).Msg("create file faild")
+	}
+
 	return file
 }
 
@@ -187,7 +334,106 @@ func (w *writer) checkFileExists() {
 func (w *writer) existsLogFile() bool {
 	now := time.Now()
 	t := now.Format(fileNameFormat)
-	fileName := fmt.Sprintf("%s_%s.log", pathPrefix, t)
+	fileName := fmt.Sprintf("%s_%s.log", w.name, t)
 	_, err := os.Stat(fileName)
 	return err == nil || os.IsExist(err)
+}
+
+type loggerManager struct {
+	mu     sync.RWMutex
+	stdout bool
+	logger map[string]*zerolog.Logger
+}
+
+func (lm *loggerManager) enableStdOut() {
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
+
+	lm.stdout = true
+}
+
+func (lm *loggerManager) disableStdOut() {
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
+
+	lm.stdout = false
+}
+
+func (lm *loggerManager) toStdOut() bool {
+	lm.mu.RLock()
+	defer lm.mu.RUnlock()
+
+	return lm.stdout
+}
+
+func (lm *loggerManager) getSetLogger(loggerName string) *zerolog.Logger {
+	if len(loggerName) == 0 {
+		log.Fatal().Str("logger_name", loggerName).Msg("get logger failed,must point logger name!")
+	}
+
+	lm.mu.RLock()
+
+	l, ok := lm.logger[loggerName]
+	if !ok {
+		lm.mu.RUnlock()
+		return lm.createLogger(loggerName)
+	}
+
+	lm.mu.RUnlock()
+	return l
+}
+
+func (lm *loggerManager) getLogger(loggerName string) *zerolog.Logger {
+	if len(loggerName) == 0 {
+		return nil
+	}
+
+	lm.mu.RLock()
+	defer lm.mu.RUnlock()
+
+	l, ok := lm.logger[loggerName]
+	if !ok {
+		return nil
+	}
+
+	return l
+}
+
+func (lm *loggerManager) setLogger(name string, logger *zerolog.Logger) {
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
+
+	lm.logger[name] = logger
+}
+
+func (lm *loggerManager) createLogger(name string) *zerolog.Logger {
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
+
+	l, ok := lm.logger[name]
+	if ok {
+		return l
+	}
+
+	w := writer{name: name}
+
+	f := w.createFile(time.Now())
+	if f == nil {
+		log.Fatal().Str("logger_name", name).Msg("create logger failed")
+	}
+
+	w.f = f
+
+	logger := log.Output(&w)
+
+	lm.logger[name] = &logger
+
+	// check
+	go w.checkFileChange()
+	go w.checkFileExists()
+
+	// log
+	log.Info().Str("logger", name).Msg("create logger success!")
+
+	return &logger
 }
